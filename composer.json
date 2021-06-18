@@ -1,0 +1,35 @@
+{
+    "name": "tanyudii/yin-number",
+    "description": "The number services of Yin Project",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "tanyudii",
+            "email": "y.hertanto17@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^7.3|^8.0",
+        "laravel/framework": "^8.0",
+        "tanyudii/yin-core": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "tanyudii\\YinNumber\\": "src/"
+        },
+        "files": []
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "1.x-dev"
+        },
+        "laravel": {
+            "providers": [
+                "tanyudii\\YinNumber\\YinNumberServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
