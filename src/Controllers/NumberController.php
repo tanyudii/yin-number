@@ -8,7 +8,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
 use tanyudii\YinCore\Controllers\YinRestController;
 use tanyudii\YinCore\Facades\YinResourceService;
-use tanyudii\YinCore\Rules\ValidPassword;
 use tanyudii\YinCore\Rules\ValidType;
 use tanyudii\YinNumber\Models\Number as NumberSetting;
 use tanyudii\YinNumber\Resources\NumberResource;
