@@ -2,59 +2,58 @@
 
 namespace tanyudii\YinNumber\Controllers;
 
-use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\DB;
+use tanyudii\YinCore\Controllers\YinRestController;
+use tanyudii\YinCore\Facades\YinResourceService;
+use tanyudii\YinCore\Rules\ValidPassword;
+use tanyudii\YinCore\Rules\ValidType;
+use tanyudii\YinNumber\Models\Number as NumberSetting;
 use tanyudii\YinNumber\Resources\NumberResource;
-use tanyudii\YinNumber\Services\NumberService;
+use tanyudii\YinNumber\Type;
 
 class NumberController
 {
-    protected $numberService;
-
-    public function __construct(NumberService $numberService)
-    {
-        $this->numberService = $numberService;
+    use YinRestController {
+        YinRestController::__construct as private __restConstruct;
     }
 
-    public function index(Request $request)
+    public function __construct(NumberSetting $model)
     {
-        $data = $this->numberService->findAll($request->all());
-
-        return NumberResource::collection($data);
-    }
-
-    public function show(Request $request, $id)
-    {
-        $data = $this->numberService->findOne(
-            array_merge(
-                [
-                    "id" => $id,
-                ],
-                $request->all()
-            )
+        $this->__restConstruct(
+            $model,
+            NumberResource::class,
+            NumberResource::class
         );
-
-        if (empty($data)) {
-            throw new ModelNotFoundException();
-        }
-
-        return new NumberResource($data);
     }
 
+    /**
+     * @param Request $request
+     * @return JsonResource
+     * @throws Exception
+     */
     public function store(Request $request)
     {
-        $data = $this->numberService->create($request->all());
-
-        return $this->show($request, $data->id);
-    }
-
-    public function destroy(Request $request, $id)
-    {
-        $totalDeleted = $this->numberService->delete(["id" => $id]);
-
-        return response()->json([
-            "success" => true,
-            "data" => $totalDeleted,
+        $request->validate([
+            "name" => ["required", "string"],
+            "model" => ["required", "string"],
+            "reset_type" => ["required", new ValidType(Type::RESET_TYPE_OPTIONS)]
         ]);
+
+        try {
+            DB::beginTransaction();
+
+            $data = $this->repository->create($request->only($this->fillAble));
+
+            DB::commit();
+
+            return YinResourceService::jsonResource(NumberResource::class, $data);
+        } catch (Exception $e) {
+            DB::rollBack();
+
+            throw $e;
+        }
     }
 }

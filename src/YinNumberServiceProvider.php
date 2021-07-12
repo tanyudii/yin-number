@@ -15,7 +15,7 @@ class YinNumberServiceProvider extends ServiceProvider
     public function register()
     {
         $this->app->bind("yin-number-service", function () {
-            return new YinNumberService();
+            return new YinNumberService;
         });
 
         $this->mergeConfigFrom(
@@ -34,7 +34,7 @@ class YinNumberServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->publishes(
                 [
-                    __DIR__ . "/../assets/migrations" => database_path(
+                    __DIR__ . "/../assets/migrations" => \database_path(
                         "migrations"
                     ),
                 ],
@@ -43,7 +43,7 @@ class YinNumberServiceProvider extends ServiceProvider
 
             $this->publishes(
                 [
-                    __DIR__ . "/../assets/yin-number.php" => config_path(
+                    __DIR__ . "/../assets/yin-number.php" => \config_path(
                         "yin-number.php"
                     ),
                 ],

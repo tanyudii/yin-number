@@ -1,11 +1,8 @@
 <?php
 
-namespace tanyudii\YinNumber\Services;
+namespace tanyudii\YinNumber;
 
-use tanyudii\YinCore\Repositories\ServiceRepository;
-use tanyudii\YinNumber\Models\Number as NumberSetting;
-
-class NumberService extends ServiceRepository
+class Type
 {
     const RESET_TYPE_DAILY = "DAILY";
     const RESET_TYPE_MONTHLY = "MONTHLY";
@@ -30,9 +27,4 @@ class NumberService extends ServiceRepository
         self::COMPONENT_TYPE_DAY,
         self::COMPONENT_TYPE_COUNTER,
     ];
-
-    public function __construct(NumberSetting $model)
-    {
-        parent::__construct($model);
-    }
 }

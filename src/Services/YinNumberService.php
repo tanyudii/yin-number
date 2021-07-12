@@ -3,10 +3,12 @@
 namespace tanyudii\YinNumber\Services;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use tanyudii\YinNumber\Contracts\NumberModel;
 use tanyudii\YinNumber\Contracts\WithNumberSetting;
 use tanyudii\YinNumber\Exceptions\YinNumberException;
+use tanyudii\YinNumber\Type;
 
 class YinNumberService
 {
@@ -22,33 +24,62 @@ class YinNumberService
         $date = null,
         $subjectId = null
     ) {
-        if (!app(config("yin-number.models.number")) instanceof NumberModel) {
+        $numberModelNamespace = Config::get("yin-number.models.number");
+        $numberModel = new $numberModelNamespace();
+
+        if (!$numberModel instanceof NumberModel) {
             throw new YinNumberException(
                 "The number model is not instance of NumberModel"
             );
-        } elseif (!app($modelNamespace) instanceof WithNumberSetting) {
+        } elseif ($numberModel instanceof WithNumberSetting) {
             throw new YinNumberException(
                 "The number model is not instance of WithNumberSetting"
             );
         }
 
-        $numberSetting = config("yin-number.models.number")
-            ::with("numberComponents")
+        $numberSetting = $numberModelNamespace::with("numberComponents")
             ->where("model", $modelNamespace)
             ->first();
 
-        $model = app($modelNamespace);
+        $model = new $modelNamespace();
         $tableName = $model->getTable();
 
-        if (
-            empty($numberSetting) ||
-            $numberSetting->numberComponents->isEmpty()
-        ) {
-            return DB::select("show table status like '{$tableName}'")[0]
-                ->Auto_increment ??
+        if (empty($numberSetting) || $numberSetting->numberComponents->isEmpty()) {
+            return DB::select("show table status like '{$tableName}'")[0]->Auto_increment ??
                 DB::table($tableName)->count("*") + 1;
         }
 
+        return $this->generate(
+            $numberSetting->numberComponents->toArray(),
+            $tableName,
+            $model->getNumberColumn(),
+            $numberSetting->reset_type,
+            $model->getDateColumn(),
+            $date,
+            $subjectId
+        );
+    }
+
+    /**
+     * @param array $components
+     * @param string $tableName
+     * @param string $numberColumn
+     * @param string $resetType
+     * @param string $dateColumn
+     * @param string|null $date
+     * @param null $exceptSubjectId
+     * @return string
+     * @throws YinNumberException
+     */
+    public function generate(
+        array $components,
+        string $tableName,
+        string $numberColumn,
+        string $resetType,
+        string $dateColumn,
+        string $date = null,
+        $exceptSubjectId = null
+    ) {
         $date = is_null($date) ? Carbon::now() : Carbon::parse($date);
 
         $prefixDigit = 0;
@@ -56,52 +87,65 @@ class YinNumberService
         $generatedNumberArray = [];
         $queryNumber = "";
 
-        foreach ($numberSetting->numberComponents as $component) {
-            if (
-                !in_array(null, $generatedNumberArray) &&
-                $component->type != NumberService::COMPONENT_TYPE_COUNTER
-            ) {
-                $digitBeforeCounter += strlen($component->format);
+        if (!in_array($resetType, Type::RESET_TYPE_OPTIONS)) {
+            throw new YinNumberException("The reset type is invalid.");
+        }
+
+        foreach ($components as $component) {
+            if (!isset($component['type']) || !in_array($component['type'], Type::COMPONENT_TYPE_OPTIONS)) {
+                throw new YinNumberException("The component type is invalid.");
+            } elseif (!isset($component['format'])) {
+                throw new YinNumberException("The component format is invalid.");
             }
 
-            switch ($component->type) {
-                case NumberService::COMPONENT_TYPE_TEXT:
-                    array_push($generatedNumberArray, $component->format);
-                    $queryNumber .= str_replace("_", "\\_", $component->format);
+            $componentType = $component['type'];
+            $componentFormat = $component['format'];
+
+            if (
+                !in_array(null, $generatedNumberArray) &&
+                $component['type'] != Type::COMPONENT_TYPE_COUNTER
+            ) {
+                $digitBeforeCounter += strlen($componentFormat);
+            }
+
+            switch ($componentType) {
+                case Type::COMPONENT_TYPE_TEXT:
+                    array_push($generatedNumberArray, $componentFormat);
+                    $queryNumber .= str_replace("_", "\\_", $componentFormat);
                     break;
-                case NumberService::COMPONENT_TYPE_YEAR:
-                    $dateText = $date->format($component->format);
+                case Type::COMPONENT_TYPE_YEAR:
+                    $dateText = $date->format($componentFormat);
                     array_push($generatedNumberArray, $dateText);
 
-                    if (is_null($numberSetting->reset_type)) {
+                    if (is_null($resetType)) {
                         $dateText = str_repeat("_", strlen($dateText));
                     }
 
                     $queryNumber .= $dateText;
                     break;
-                case NumberService::COMPONENT_TYPE_MONTH:
-                    $dateText = $date->format($component->format);
+                case Type::COMPONENT_TYPE_MONTH:
+                    $dateText = $date->format($componentFormat);
                     array_push($generatedNumberArray, $dateText);
 
                     if (
-                        is_null($numberSetting->reset_type) ||
-                        $numberSetting->reset_type ==
-                            NumberService::RESET_TYPE_YEARLY
+                        is_null($resetType) ||
+                        $resetType ==
+                        Type::RESET_TYPE_YEARLY
                     ) {
                         $dateText = str_repeat("_", strlen($dateText));
                     }
 
                     $queryNumber .= $dateText;
                     break;
-                case NumberService::COMPONENT_TYPE_DAY:
-                    $dateText = date($component->format, strtotime($date));
+                case Type::COMPONENT_TYPE_DAY:
+                    $dateText = date($componentFormat, strtotime($date));
                     array_push($generatedNumberArray, $dateText);
 
                     if (
-                        is_null($numberSetting->reset_type) ||
-                        in_array($numberSetting->reset_type, [
-                            NumberService::RESET_TYPE_YEARLY,
-                            NumberService::RESET_TYPE_MONTHLY,
+                        is_null($resetType) ||
+                        in_array($resetType, [
+                            Type::RESET_TYPE_YEARLY,
+                            Type::RESET_TYPE_MONTHLY,
                         ])
                     ) {
                         $dateText = str_repeat("_", strlen($dateText));
@@ -109,39 +153,36 @@ class YinNumberService
 
                     $queryNumber .= $dateText;
                     break;
-                case NumberService::COMPONENT_TYPE_COUNTER:
+                case Type::COMPONENT_TYPE_COUNTER:
                     array_push($generatedNumberArray, null);
-                    $queryNumber .= str_repeat("_", $component->format);
-                    $prefixDigit = $component->format;
+                    $queryNumber .= str_repeat("_", $componentFormat);
+                    $prefixDigit = $componentFormat;
                     break;
             }
         }
 
-        $dateColumn = $model->getDateColumn();
-
-        $subjectNumbers = app($modelNamespace)
-            ->withoutGlobalScopes()
-            ->where("number", "like", $queryNumber)
+        $subjectNumbers = DB::table($tableName)
+            ->where($numberColumn, "like", $queryNumber)
             ->when(
-                in_array($numberSetting->reset_type, [
-                    NumberService::RESET_TYPE_YEARLY,
-                    NumberService::RESET_TYPE_MONTHLY,
+                in_array($resetType, [
+                    Type::RESET_TYPE_YEARLY,
+                    Type::RESET_TYPE_MONTHLY,
                 ]),
                 function ($query) use ($dateColumn, $date) {
                     $query->whereYear($dateColumn, $date->format("Y"));
                 }
             )
             ->when(
-                $numberSetting->reset_type == NumberService::RESET_TYPE_MONTHLY,
+                $resetType == Type::RESET_TYPE_MONTHLY,
                 function ($query) use ($dateColumn, $date) {
                     $query->whereMonth($dateColumn, $date->format("m"));
                 }
             )
-            ->when($subjectId, function ($query) use ($subjectId) {
-                $query->where("id", "!=", $subjectId);
+            ->when(!is_null($exceptSubjectId), function ($query) use ($exceptSubjectId) {
+                $query->where("id", "!=", $exceptSubjectId);
             })
-            ->orderBy("number")
-            ->pluck("number")
+            ->orderBy($numberColumn)
+            ->pluck($numberColumn)
             ->toArray();
 
         $existingNumbers = array_map(function ($subjectNo) use (
@@ -160,7 +201,7 @@ class YinNumberService
                 substr($subjectNo, $digitBeforeCounter, $prefixDigit)
             );
         },
-        $subjectNumbers);
+            $subjectNumbers);
 
         sort($existingNumbers);
 
@@ -181,7 +222,7 @@ class YinNumberService
 
         $newCounter = str_pad($newCounter, $prefixDigit, "0", STR_PAD_LEFT);
         $generatedNumberArray[
-            array_search(null, $generatedNumberArray)
+        array_search(null, $generatedNumberArray)
         ] = $newCounter;
 
         return implode("", $generatedNumberArray);

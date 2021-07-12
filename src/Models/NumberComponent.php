@@ -4,6 +4,7 @@ namespace tanyudii\YinNumber\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Config;
 
 class NumberComponent extends Model
 {
@@ -11,6 +12,6 @@ class NumberComponent extends Model
 
     public function number(): BelongsTo
     {
-        return $this->belongsTo(config("yin-number.models.number"));
+        return $this->belongsTo(Config::get("yin-number.models.number"));
     }
 }

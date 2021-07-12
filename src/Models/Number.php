@@ -4,6 +4,7 @@ namespace tanyudii\YinNumber\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Config;
 use tanyudii\YinNumber\Contracts\NumberModel;
 
 class Number extends Model implements NumberModel
@@ -12,6 +13,6 @@ class Number extends Model implements NumberModel
 
     public function numberComponents(): HasMany
     {
-        return $this->hasMany(config("yin-number.models.number_component"));
+        return $this->hasMany(Config::get("yin-number.models.number_component"));
     }
 }
