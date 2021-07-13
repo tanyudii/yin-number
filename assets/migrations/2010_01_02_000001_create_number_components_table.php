@@ -4,6 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use tanyudii\YinNumber\Services\NumberService;
+use tanyudii\YinNumber\Type;
 
 class CreateNumberComponentsTable extends Migration
 {
@@ -19,7 +20,7 @@ class CreateNumberComponentsTable extends Migration
 
             $table->unsignedBigInteger("number_id");
             $table->unsignedInteger("sequence");
-            $table->enum("type", NumberService::COMPONENT_TYPE_OPTIONS);
+            $table->enum("type", Type::COMPONENT_TYPE_OPTIONS);
             $table->string("format");
 
             $table->timestamps();

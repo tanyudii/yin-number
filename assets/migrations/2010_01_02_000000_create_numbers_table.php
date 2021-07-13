@@ -3,7 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use tanyudii\YinNumber\Services\NumberService;
+use tanyudii\YinNumber\Type;
 
 class CreateNumbersTable extends Migration
 {
@@ -19,9 +19,7 @@ class CreateNumbersTable extends Migration
 
             $table->string("name");
             $table->string("model");
-            $table
-                ->enum("reset_type", NumberService::RESET_TYPE_OPTIONS)
-                ->nullable();
+            $table->enum("reset_type", Type::RESET_TYPE_OPTIONS)->nullable();
 
             $table->timestamps();
         });
