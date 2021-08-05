@@ -17,15 +17,13 @@ class YinNumberService
      * @param string $modelNamespace
      * @param null $date
      * @param null $subjectId
-     * @param int $nextCounter
      * @return string
      * @throws YinNumberException
      */
     public function generateNumber(
         string $modelNamespace,
         $date = null,
-        $subjectId = null,
-        int $nextCounter = 0
+        $subjectId = null
     ) {
         $numberModelNamespace = Config::get("yin-number.models.number");
         $numberModel = new $numberModelNamespace();
@@ -60,7 +58,6 @@ class YinNumberService
             $model->getDateColumn(),
             $date,
             $subjectId,
-            $nextCounter,
         );
     }
 
@@ -104,7 +101,6 @@ class YinNumberService
      * @param string $dateColumn
      * @param string|null $date
      * @param null $exceptSubjectId
-     * @param int $nextCounter
      * @return string
      * @throws YinNumberException
      */
@@ -115,8 +111,7 @@ class YinNumberService
         string $resetType,
         string $dateColumn,
         string $date = null,
-        $exceptSubjectId = null,
-        int $nextCounter = 0
+        $exceptSubjectId = null
     ) {
         $date = is_null($date) ? Carbon::now() : Carbon::parse($date);
 
@@ -223,47 +218,57 @@ class YinNumberService
             ->pluck($numberColumn)
             ->toArray();
 
-        if ($nextCounter) {
-            $existingNumbers = array_map(function ($subjectNo) use (
-                $generatedNumberArray,
-                $prefixDigit,
-                $digitBeforeCounter
-            ) {
-                $counterIndex = array_search(null, $generatedNumberArray);
-                if ($counterIndex == 0) {
-                    return intval(substr($subjectNo, 0, $prefixDigit));
-                } elseif ($counterIndex + 1 == count($generatedNumberArray)) {
-                    return intval(substr($subjectNo, $prefixDigit * -1));
-                }
-
-                return intval(
-                    substr($subjectNo, $digitBeforeCounter, $prefixDigit)
-                );
-            },
-                $subjectNumbers);
-
-            sort($existingNumbers);
-
-            if (empty($existingNumbers)) {
-                $newCounter = 1;
-            } else {
-                $idealNos = range(
-                    $existingNumbers[0],
-                    $existingNumbers[count($existingNumbers) - 1]
-                );
-                $suggestedNos = array_values(
-                    array_diff($idealNos, $existingNumbers)
-                );
-                $newCounter = empty($suggestedNos)
-                    ? $existingNumbers[count($existingNumbers) - 1] + 1
-                    : $suggestedNos[0];
+        $existingNumbers = array_map(function ($subjectNo) use (
+            $generatedNumberArray,
+            $prefixDigit,
+            $digitBeforeCounter
+        ) {
+            $counterIndex = array_search(null, $generatedNumberArray);
+            if ($counterIndex == 0) {
+                return intval(substr($subjectNo, 0, $prefixDigit));
+            } elseif ($counterIndex + 1 == count($generatedNumberArray)) {
+                return intval(substr($subjectNo, $prefixDigit * -1));
             }
+
+            return intval(
+                substr($subjectNo, $digitBeforeCounter, $prefixDigit)
+            );
+        },
+            $subjectNumbers);
+
+        sort($existingNumbers);
+
+        if (empty($existingNumbers)) {
+            $newCounter = 1;
         } else {
-            $newCounter = $nextCounter;
+            $idealNos = range(
+                $existingNumbers[0],
+                $existingNumbers[count($existingNumbers) - 1]
+            );
+            $suggestedNos = array_values(
+                array_diff($idealNos, $existingNumbers)
+            );
+            $newCounter = empty($suggestedNos)
+                ? $existingNumbers[count($existingNumbers) - 1] + 1
+                : $suggestedNos[0];
         }
 
-        $generatedNumberArray[array_search(null, $generatedNumberArray)] = str_pad($newCounter, $prefixDigit, "0", STR_PAD_LEFT);
+        $bookedNumberModelNamespace = Config::get("yin-number.models.booked_number");
 
-        return implode("", $generatedNumberArray);
+        do {
+            $generatedNumberArray[array_search(null, $generatedNumberArray)] = str_pad($newCounter, $prefixDigit, "0", STR_PAD_LEFT);
+            $number = implode("", $generatedNumberArray);
+
+            $isNumberBooked = $bookedNumberModelNamespace::query()
+                ->where('table', $tableName)
+                ->where('number', $number)
+                ->exists();
+
+            if ($isNumberBooked) {
+                $newCounter++;
+            }
+        } while ($isNumberBooked);
+
+        return $number;
     }
 }
