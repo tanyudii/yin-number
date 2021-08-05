@@ -256,8 +256,9 @@ class YinNumberService
         $bookedNumberModelNamespace = Config::get("yin-number.models.booked_number");
 
         do {
-            $generatedNumberArray[array_search(null, $generatedNumberArray)] = str_pad($newCounter, $prefixDigit, "0", STR_PAD_LEFT);
-            $number = implode("", $generatedNumberArray);
+            $tempGeneratedNumberArray = $generatedNumberArray;
+            $tempGeneratedNumberArray[array_search(null, $tempGeneratedNumberArray)] = str_pad($newCounter, $prefixDigit, "0", STR_PAD_LEFT);
+            $number = implode("", $tempGeneratedNumberArray);
 
             $isNumberBooked = $bookedNumberModelNamespace::query()
                 ->where('table', $tableName)
