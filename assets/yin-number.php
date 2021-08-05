@@ -7,6 +7,7 @@ return [
     "models" => [
         "number" => \tanyudii\YinNumber\Models\Number::class,
         "number_component" => \tanyudii\YinNumber\Models\NumberComponent::class,
+        "booked_number" => \tanyudii\YinNumber\Models\BookedNumber::class,
     ],
 
     /**

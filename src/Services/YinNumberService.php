@@ -2,6 +2,7 @@
 
 namespace tanyudii\YinNumber\Services;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
@@ -16,13 +17,15 @@ class YinNumberService
      * @param string $modelNamespace
      * @param null $date
      * @param null $subjectId
+     * @param int $nextCounter
      * @return string
      * @throws YinNumberException
      */
     public function generateNumber(
         string $modelNamespace,
         $date = null,
-        $subjectId = null
+        $subjectId = null,
+        int $nextCounter = 0
     ) {
         $numberModelNamespace = Config::get("yin-number.models.number");
         $numberModel = new $numberModelNamespace();
@@ -56,8 +59,41 @@ class YinNumberService
             $numberSetting->reset_type,
             $model->getDateColumn(),
             $date,
-            $subjectId
+            $subjectId,
+            $nextCounter,
         );
+    }
+
+    /**
+     * @param string $modelNamespace
+     * @param null $date
+     * @param null $subjectId
+     * @return Model
+     * @throws YinNumberException
+     */
+    public function bookingNumber(string $modelNamespace, $date = null, $subjectId = null)
+    {
+        $numberModelNamespace = Config::get("yin-number.models.number");
+
+        $numberSetting = $numberModelNamespace::with("numberComponents")
+            ->where("model", $modelNamespace)
+            ->first();
+
+        if (empty($numberSetting)) {
+            throw new YinNumberException(
+                "The number model is not configured for $modelNamespace."
+            );
+        }
+
+        $model = new $modelNamespace();
+        $tableName = $model->getTable();
+
+        $bookedNumberModelNamespace = Config::get("yin-number.models.booked_number");
+
+        return $bookedNumberModelNamespace::query()->create([
+            'entity' => $tableName,
+            'number' => $this->generateNumber($modelNamespace, $date, $subjectId),
+        ]);
     }
 
     /**
@@ -68,6 +104,7 @@ class YinNumberService
      * @param string $dateColumn
      * @param string|null $date
      * @param null $exceptSubjectId
+     * @param int $nextCounter
      * @return string
      * @throws YinNumberException
      */
@@ -78,7 +115,8 @@ class YinNumberService
         string $resetType,
         string $dateColumn,
         string $date = null,
-        $exceptSubjectId = null
+        $exceptSubjectId = null,
+        int $nextCounter = 0
     ) {
         $date = is_null($date) ? Carbon::now() : Carbon::parse($date);
 
@@ -185,45 +223,46 @@ class YinNumberService
             ->pluck($numberColumn)
             ->toArray();
 
-        $existingNumbers = array_map(function ($subjectNo) use (
-            $generatedNumberArray,
-            $prefixDigit,
-            $digitBeforeCounter
-        ) {
-            $counterIndex = array_search(null, $generatedNumberArray);
-            if ($counterIndex == 0) {
-                return intval(substr($subjectNo, 0, $prefixDigit));
-            } elseif ($counterIndex + 1 == count($generatedNumberArray)) {
-                return intval(substr($subjectNo, $prefixDigit * -1));
+        if ($nextCounter) {
+            $existingNumbers = array_map(function ($subjectNo) use (
+                $generatedNumberArray,
+                $prefixDigit,
+                $digitBeforeCounter
+            ) {
+                $counterIndex = array_search(null, $generatedNumberArray);
+                if ($counterIndex == 0) {
+                    return intval(substr($subjectNo, 0, $prefixDigit));
+                } elseif ($counterIndex + 1 == count($generatedNumberArray)) {
+                    return intval(substr($subjectNo, $prefixDigit * -1));
+                }
+
+                return intval(
+                    substr($subjectNo, $digitBeforeCounter, $prefixDigit)
+                );
+            },
+                $subjectNumbers);
+
+            sort($existingNumbers);
+
+            if (empty($existingNumbers)) {
+                $newCounter = 1;
+            } else {
+                $idealNos = range(
+                    $existingNumbers[0],
+                    $existingNumbers[count($existingNumbers) - 1]
+                );
+                $suggestedNos = array_values(
+                    array_diff($idealNos, $existingNumbers)
+                );
+                $newCounter = empty($suggestedNos)
+                    ? $existingNumbers[count($existingNumbers) - 1] + 1
+                    : $suggestedNos[0];
             }
-
-            return intval(
-                substr($subjectNo, $digitBeforeCounter, $prefixDigit)
-            );
-        },
-            $subjectNumbers);
-
-        sort($existingNumbers);
-
-        if (empty($existingNumbers)) {
-            $newCounter = 1;
         } else {
-            $idealNos = range(
-                $existingNumbers[0],
-                $existingNumbers[count($existingNumbers) - 1]
-            );
-            $suggestedNos = array_values(
-                array_diff($idealNos, $existingNumbers)
-            );
-            $newCounter = empty($suggestedNos)
-                ? $existingNumbers[count($existingNumbers) - 1] + 1
-                : $suggestedNos[0];
+            $newCounter = $nextCounter;
         }
 
-        $newCounter = str_pad($newCounter, $prefixDigit, "0", STR_PAD_LEFT);
-        $generatedNumberArray[
-        array_search(null, $generatedNumberArray)
-        ] = $newCounter;
+        $generatedNumberArray[array_search(null, $generatedNumberArray)] = str_pad($newCounter, $prefixDigit, "0", STR_PAD_LEFT);
 
         return implode("", $generatedNumberArray);
     }
